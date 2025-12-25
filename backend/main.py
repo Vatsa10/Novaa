@@ -24,8 +24,12 @@ MODEL_NAME = "functiongemma:latest"
 class ChatRequest(BaseModel):
     messages: list
 
-class ChatRequest(BaseModel):
-    messages: list
+class FunctionCallRequest(BaseModel):
+    command: str
+
+class FunctionCall(BaseModel):
+    name: str
+    parameters: Dict[str, str]
 
 @app.get("/")
 def health_check():
@@ -42,17 +46,14 @@ async def chat(payload: ChatRequest):
             "model": MODEL_NAME,
             "messages": messages,
             "stream": False,
-            # "format": "json"  <-- REMOVED to allow free-form text
         })
         res.raise_for_status()
         
         ollama_res = res.json()
         content = ollama_res.get("message", {}).get("content", "")
         
-        # Return a simple structure compatible with frontend's basic expectation
-        # or just the raw content wrapped in a dict
         return {
-            "intent": "chat", # dummy intent to keep frontend happy
+            "intent": "chat",
             "message": content,
             "data": {}
         }
@@ -61,6 +62,69 @@ async def chat(payload: ChatRequest):
         raise HTTPException(status_code=503, detail="Ollama is not running on port 11434.")
     except Exception as e:
         print(f"Server Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/parse-command", response_model=FunctionCall)
+async def parse_command(payload: FunctionCallRequest):
+    """Parse natural language command into structured function call using FunctionGemma"""
+    
+    system_prompt = """You are a function calling assistant for a voice-controlled browser. 
+Parse user commands into JSON function calls with this exact structure:
+{
+  "name": "function_name",
+  "parameters": {"key": "value"}
+}
+
+Available functions:
+- open_browser(url: string) - Navigate to a URL
+- search_web(query: string) - Search Google
+- go_back() - Navigate back
+- go_forward() - Navigate forward  
+- refresh_page() - Reload page
+
+Examples:
+"open google" -> {"name": "open_browser", "parameters": {"url": "google.com"}}
+"search for cats" -> {"name": "search_web", "parameters": {"query": "cats"}}
+"go back" -> {"name": "go_back", "parameters": {}}
+
+Return ONLY the JSON, no explanation."""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": payload.command}
+    ]
+
+    try:
+        print(f"Parsing command: {payload.command}")
+        res = requests.post(OLLAMA_URL, json={
+            "model": MODEL_NAME,
+            "messages": messages,
+            "stream": False,
+            "format": "json"
+        })
+        res.raise_for_status()
+        
+        content = res.json().get("message", {}).get("content", "{}")
+        
+        # Clean markdown if present
+        if "```json" in content:
+            content = content.replace("```json", "").replace("```", "").strip()
+        
+        parsed = json.loads(content)
+        
+        # Validate and return
+        function_call = FunctionCall(**parsed)
+        print(f"Parsed function: {function_call.name} with params: {function_call.parameters}")
+        return function_call
+        
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"Parse error: {e}, raw: {content}")
+        # Fallback: treat as search query
+        return FunctionCall(name="search_web", parameters={"query": payload.command})
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(status_code=503, detail="Ollama is not running")
+    except Exception as e:
+        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
