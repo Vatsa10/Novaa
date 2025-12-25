@@ -110,11 +110,51 @@ const API_URL = 'http://<YOUR_LOCAL_IP>:8000';
 
 ## Voice Recognition Support
 
-**Web Platform**: Uses native Web Speech API (Chrome, Edge)
-**Mobile Platforms**: Currently requires web browser. Native mobile speech recognition can be added via:
-- `expo-speech` (text-to-speech only)
-- `react-native-voice` (requires custom dev client)
-- Cloud services (Google Speech-to-Text, Azure Speech)
+### Platform Support Matrix
+
+| Platform | Technology | Status |
+|----------|-----------|--------|
+| **Web** | Web Speech API | ✅ Fully Supported (Chrome, Edge) |
+| **iOS** | Native Speech Recognition | ✅ Fully Supported |
+| **Android** | Native Speech Recognition | ✅ Fully Supported |
+
+### Implementation Details
+
+The app uses a **cross-platform voice recognition hook** (`useVoiceRecognition`) that automatically selects the appropriate recognition engine:
+
+- **Web**: Uses browser's `webkitSpeechRecognition` API
+- **iOS/Android**: Uses `expo-speech-recognition` with native bindings
+
+### Permissions
+
+**iOS**: Automatically requests microphone and speech recognition permissions on first use.
+
+**Android**: Requires `RECORD_AUDIO` permission (configured in `app.json`).
+
+### Building for Native Devices
+
+Since `expo-speech-recognition` requires native code, you need to create a development build:
+
+```bash
+# Install EAS CLI
+npm install -g eas-cli
+
+# Login to Expo
+eas login
+
+# Create development build
+eas build --profile development --platform android
+# or
+eas build --profile development --platform ios
+```
+
+Alternatively, use Expo Go for testing (limited native module support) or create a local development build:
+
+```bash
+npx expo run:android
+# or
+npx expo run:ios
+```
 
 ## Capabilities
 *   **Function Calling/Tool Use**: Native support for binding LLM outputs to specific functional capabilities (e.g., browser navigation, search).

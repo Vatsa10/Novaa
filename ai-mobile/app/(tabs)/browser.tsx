@@ -5,7 +5,6 @@ import {
     TextInput,
     TouchableOpacity,
     ActivityIndicator,
-    Platform,
     Alert,
     Animated,
 } from 'react-native';
@@ -14,89 +13,67 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
 import { parseVoiceCommand } from '../../services/voiceService';
+import { useVoiceRecognition } from '../../hooks/useVoiceRecognition';
 
 export default function VoiceBrowserScreen() {
     const [url, setUrl] = useState('https://www.google.com');
     const [currentUrl, setCurrentUrl] = useState('https://www.google.com');
-    const [isListening, setIsListening] = useState(false);
-    const [transcript, setTranscript] = useState('');
     const [status, setStatus] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [showFeedback, setShowFeedback] = useState(false);
 
     const webViewRef = useRef<WebView>(null);
-    const recognitionRef = useRef<any>(null);
     const feedbackOpacity = useRef(new Animated.Value(0)).current;
     const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Use cross-platform voice recognition hook
+    const {
+        isListening,
+        transcript,
+        error: voiceError,
+        isSupported,
+        startListening,
+        stopListening,
+    } = useVoiceRecognition({
+        onResult: (result) => {
+            if (result.isFinal) {
+                processVoiceCommand(result.transcript);
+            } else {
+                // Show interim results
+                showFeedbackPanel(result.transcript, 'Listening...');
+            }
+        },
+    });
+
     useEffect(() => {
-        // Initialize Web Speech API (works on web and some browsers)
-        if (Platform.OS === 'web' && 'webkitSpeechRecognition' in window) {
-            const SpeechRecognition = (window as any).webkitSpeechRecognition;
-            recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.continuous = false;
-            recognitionRef.current.interimResults = true;
-            recognitionRef.current.lang = 'en-US';
-
-            recognitionRef.current.onresult = (event: any) => {
-                const result = event.results[event.results.length - 1];
-                const transcriptText = result[0].transcript;
-                setTranscript(transcriptText);
-
-                if (result.isFinal) {
-                    processVoiceCommand(transcriptText);
-                }
-            };
-
-            recognitionRef.current.onerror = (event: any) => {
-                console.error('Speech recognition error:', event.error);
-                setIsListening(false);
-                showFeedbackPanel('', `Error: ${event.error}`, true);
-            };
-
-            recognitionRef.current.onend = () => {
-                setIsListening(false);
-            };
+        if (voiceError) {
+            showFeedbackPanel('', `Voice Error: ${voiceError}`, true);
         }
+    }, [voiceError]);
 
+    useEffect(() => {
         return () => {
             if (hideTimer.current) clearTimeout(hideTimer.current);
         };
     }, []);
 
-    const startListening = () => {
-        if (Platform.OS !== 'web') {
+    const handleVoiceButtonPress = async () => {
+        if (!isSupported) {
             Alert.alert(
-                'Voice Input',
-                'Voice recognition is currently only supported in web browsers. Please type your command or use the web version.',
+                'Not Supported',
+                'Voice recognition is not supported on this device or browser.',
                 [{ text: 'OK' }]
             );
             return;
         }
 
-        if (!recognitionRef.current) {
-            Alert.alert('Not Supported', 'Speech recognition is not supported in this browser.');
-            return;
+        if (isListening) {
+            stopListening();
+        } else {
+            setStatus('Listening...');
+            showFeedbackPanel('', 'Listening...');
+            await startListening();
         }
-
-        setIsListening(true);
-        setTranscript('');
-        setStatus('Listening...');
-        showFeedbackPanel('', 'Listening...');
-
-        try {
-            recognitionRef.current.start();
-        } catch (error) {
-            console.error('Failed to start recognition:', error);
-            setIsListening(false);
-        }
-    };
-
-    const stopListening = () => {
-        if (recognitionRef.current) {
-            recognitionRef.current.stop();
-        }
-        setIsListening(false);
     };
 
     const processVoiceCommand = async (command: string) => {
@@ -187,7 +164,8 @@ export default function VoiceBrowserScreen() {
     };
 
     const showFeedbackPanel = (transcriptText: string, statusText: string, isError = false) => {
-        setTranscript(transcriptText);
+        // Note: transcript is managed by the voice recognition hook
+        // We show transcriptText in the feedback panel directly
         setStatus(statusText);
         setShowFeedback(true);
 
@@ -231,7 +209,7 @@ export default function VoiceBrowserScreen() {
 
                 <TouchableOpacity
                     style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
-                    onPress={isListening ? stopListening : startListening}
+                    onPress={handleVoiceButtonPress}
                     disabled={isProcessing}
                 >
                     <Ionicons

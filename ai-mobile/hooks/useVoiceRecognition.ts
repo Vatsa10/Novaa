@@ -10,6 +10,10 @@ export interface VoiceRecognitionResult {
     isFinal: boolean;
 }
 
+export interface VoiceRecognitionOptions {
+    onResult?: (result: VoiceRecognitionResult) => void;
+}
+
 export interface VoiceRecognitionHook {
     isListening: boolean;
     transcript: string;
@@ -20,7 +24,7 @@ export interface VoiceRecognitionHook {
 }
 
 export const useVoiceRecognition = (
-    onResult?: (result: VoiceRecognitionResult) => void
+    options?: VoiceRecognitionOptions
 ): VoiceRecognitionHook => {
     const [isListening, setIsListening] = useState(false);
     const [transcript, setTranscript] = useState('');
@@ -66,8 +70,8 @@ export const useVoiceRecognition = (
                     const transcriptText = result[0].transcript;
                     setTranscript(transcriptText);
 
-                    if (onResult) {
-                        onResult({
+                    if (options?.onResult) {
+                        options.onResult({
                             transcript: transcriptText,
                             isFinal: result.isFinal,
                         });
@@ -95,7 +99,7 @@ export const useVoiceRecognition = (
                 }
             }
         };
-    }, [isSupported, onResult]);
+    }, [isSupported, options]);
 
     // Handle native speech recognition events (iOS/Android)
     useSpeechRecognitionEvent('start', () => {
@@ -111,8 +115,8 @@ export const useVoiceRecognition = (
         const transcriptText = event.results[0]?.transcript || '';
         setTranscript(transcriptText);
 
-        if (onResult) {
-            onResult({
+        if (options?.onResult) {
+            options.onResult({
                 transcript: transcriptText,
                 isFinal: event.isFinal,
             });
