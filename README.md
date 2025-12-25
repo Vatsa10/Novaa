@@ -1,20 +1,30 @@
 # Nova: Edge-Native AI Orchestration Architecture
 
-This repository contains the reference implementation for **Nova**, a distributed mobile AI architecture designed for low-latency, privacy-preserving inference. It leverages a split-compute model where **Expo (React Native)** serves as the client presentation layer, communicating with a local inference node powered by **FunctionGemma-270M-IT** via **Ollama**.
+This repository contains the reference implementation for **Nova**, a distributed mobile AI architecture designed for low-latency, privacy-preserving inference. It supports **both on-device and cloud-based inference**, providing flexibility for different deployment scenarios.
 
 ## System Architecture
 
-The system implements a client-server topology designed for edge deployment:
+The system implements a **hybrid topology** with multiple inference options:
 
-*   **Client Layer**: React Native application utilizing asynchronous I/O for non-blocking UI rendering.
-*   **Orchestration Layer**: FastAPI microservice serving as an API Gateway. It handles request normalization, prompt injection, and response schema enforcement.
-*   **Inference Engine**: Ollama instance hosting Quantized GGUF models (FunctionGemma-270M), optimized for CPU-based inference on commodity hardware.
+*   **Client Layer**: React Native application with voice recognition and browser control
+*   **Inference Layer** (Choose one or both):
+    *   **On-Device**: llama.cpp running locally on mobile device (iOS/Android)
+    *   **Cloud**: FastAPI gateway → Ollama server (remote)
+*   **Model**: FunctionGemma-270M-IT (GGUF format)
 
 ```mermaid
 graph TD
-    Client[Mobile Client / Expo] <-->|REST/JSON| Gateway[API Gateway / FastAPI]
-    Gateway <-->|RPC| Inference[Ollama Engine]
-    Inference -->|logits| Model[FunctionGemma-270M]
+    A[Mobile Client / Expo] -->|Voice Input| B[Voice Recognition]
+    B --> C{Inference Mode}
+    C -->|On-Device| D[llama.cpp Local]
+    C -->|Backend| E[FastAPI Gateway]
+    C -->|Auto| F[Try Local → Fallback Remote]
+    D --> G[FunctionGemma GGUF]
+    E --> H[Ollama Server]
+    H --> I[FunctionGemma]
+    G --> J[Function Call]
+    I --> J
+    J --> K[Browser Action]
 ```
 
 ## Features
