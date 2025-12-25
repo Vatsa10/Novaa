@@ -52,6 +52,43 @@ export class FunctionGemmaEngine {
     }
 
     /**
+     * Get the path to the bundled model (if it exists)
+     */
+    private getBundledModelPath(): string | null {
+        if (Platform.OS === 'web') {
+            return null; // Web doesn't support bundled assets
+        }
+
+        // For native platforms, the model should be in assets/models/
+        // The exact path depends on the platform
+        if (Platform.OS === 'android') {
+            // Android: assets are in the APK
+            return 'file:///android_asset/models/functiongemma-270m-it-Q4_K_M.gguf';
+        } else if (Platform.OS === 'ios') {
+            // iOS: assets are in the app bundle
+            // llama.rn will handle the bundle path automatically
+            return 'functiongemma-270m-it-Q4_K_M.gguf';
+        }
+
+        return null;
+    }
+
+    /**
+     * Try to auto-load the bundled model
+     */
+    async tryLoadBundledModel(): Promise<boolean> {
+        const bundledPath = this.getBundledModelPath();
+
+        if (!bundledPath) {
+            console.log('[FunctionGemma] No bundled model path for this platform');
+            return false;
+        }
+
+        console.log('[FunctionGemma] Attempting to load bundled model from:', bundledPath);
+        return await this.loadModel(bundledPath);
+    }
+
+    /**
      * Load the model from specified path
      * @param modelPath Path to .gguf model file
      * @param config Optional model configuration

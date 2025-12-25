@@ -50,4 +50,8 @@ app-example
 /ios
 /android
 
+# AI Models (large files - download separately)
+ai-mobile/assets/models/*.gguf
+*.gguf
+
 backend/venv

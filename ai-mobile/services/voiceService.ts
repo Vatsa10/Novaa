@@ -29,6 +29,37 @@ export enum InferenceMode {
 
 let currentMode: InferenceMode = InferenceMode.AUTO;
 let onDeviceAvailable = false;
+let autoInitAttempted = false;
+
+/**
+ * Auto-initialize on-device inference with bundled model
+ * Call this on app startup
+ */
+export async function autoInitializeOnDevice(): Promise<boolean> {
+    if (autoInitAttempted) {
+        return onDeviceAvailable;
+    }
+
+    autoInitAttempted = true;
+    console.log('[VoiceService] Auto-initializing on-device inference...');
+
+    try {
+        const engine = getFunctionGemmaEngine();
+        const success = await engine.tryLoadBundledModel();
+
+        if (success) {
+            onDeviceAvailable = true;
+            console.log('[VoiceService] Bundled model loaded successfully!');
+            return true;
+        } else {
+            console.log('[VoiceService] No bundled model found or failed to load');
+            return false;
+        }
+    } catch (error) {
+        console.warn('[VoiceService] Auto-init failed:', error);
+        return false;
+    }
+}
 
 /**
  * Initialize on-device inference
